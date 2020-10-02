@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH -q defq
+#SBATCH -N 1
+#SBATCH -n 16
+#SBATCH -t 02:00:00
+#SBATCH --exclude=gpu01
+#SBATCH -J pygrib_11098000
+#SBATCH -o job_output/pygrib_11098000.%j.out
+#SBATCH -e job_output/pygrib_11098000.%j.error
+
+module purge
+
+python grabDataFromMultipleGRIB_SUMMA_Forcing.py
