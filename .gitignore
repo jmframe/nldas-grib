@@ -1,3 +1,6 @@
 job_output/*
 *.out
 *.error
+z_trash/*
+z_old/*
+.ipynb_checkpoints/
