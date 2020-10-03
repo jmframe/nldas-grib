@@ -5,3 +5,4 @@ z_trash/*
 z_old/*
 .ipynb_checkpoints/
 *.swp
+__pycache__/
