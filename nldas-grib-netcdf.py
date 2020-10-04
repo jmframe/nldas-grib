@@ -20,10 +20,10 @@ nc_year=1980
 
 # Write the NetCDF forcing data file.
 grib_dir = '/home/NearingLab/data/nldas/grib/NLDAS2.FORCING/'
-write_dir = '/home/NearingLab/data/nldas/netcdf-single-cells/'+str(nc_year)+'/'
+write_dir = '/home/NearingLab/data/nldas/netcdf-single-cells/' + str(nc_year) +'/'
 
-# Open an example file
-fname = grib_dir + '1979/001/' + 'NLDAS_FORA0125_H.A19790101.1300.002.grb'
+# Open an example file : NLDAS_FORA0125_H.A19800101.0000.002.grb
+fname = grib_dir + str(nc_year) + '/001/' + 'NLDAS_FORA0125_H.A'+ str(nc_year) +'0101.0000.002.grb'
 #fname = grib_dir + '2019/001/' + 'NLDAS_FORA0125_H.A20190101.0000.002.grb'
 gbf_temp = pg.open(fname)
 lats = gbf_temp[1].latitudes
@@ -37,15 +37,15 @@ gvars = {0:'airtemp', 1:'spechum', 2:'airpres', 3:'forcingUGRD', 4:'windspd',
 fvars = {0:'airpres', 1:'airtemp', 2:'pptrate', 3:'spechum', 4:'windspd', 5:'LWRadAtm',6:'SWRadAtm'}
 
 # Set start and end data information for the GRIB/NetCDF forcing data.
-yearStart  = 1979
+yearStart  = nc_year
 monthStart = 1 
 dayStart   = 1 
-hourStart  = 13
+hourStart  = 0
 startDateTime = dt.datetime(yearStart, monthStart, dayStart, hour = hourStart)
 print("Will be calculating hours starting from: ")
 print(startDateTime)
 dayOfYearStart = dt.datetime.date(startDateTime).timetuple().tm_yday
-yearEnd  = 1979
+yearEnd  = nc_year
 monthEnd = 12
 dayEnd   = 31 
 hourEnd  = 23
@@ -90,6 +90,7 @@ len(dates)
 # find all the masked cells before the main loop, and avoid them
 ixy = -1 # Start at -1, so when we add the first value before the mask check, it goes to 0
 xy_list = []
+print('finding good(not masked) lat/lon values for grid')
 for x in tqdm(range(464)):
     for y in range(224):            
         ixy+=1 # lat/lon from the 1D arrays that correspond to these indices
@@ -100,6 +101,7 @@ for x in tqdm(range(464)):
 # Set up a dictionary for each cell, keys named from lat-lon
 # Will be filled in with data from the grib files
 G = {}
+print('Setting up forcing lists for all grids')
 for ixy in tqdm(xy_list):
     xy = npt.name_xy(ixy, lats, lons)
     G[xy] = npt.setForcingLists(H)
@@ -107,6 +109,7 @@ for ixy in tqdm(xy_list):
 # Main loop through the GRIB files by one hour intervals. open, extract, write, save
 # Main loop through the NetCDF files by one hour intervals. 
 # iH: Index to use for filling forcing data list.
+print('Main loop: Extracting data from Grib files')
 for iH, t in enumerate(tqdm(dates)):
 
     hoursSinceStartDate = t - startDateTime
@@ -131,11 +134,9 @@ for iH, t in enumerate(tqdm(dates)):
         print('File not found: \n',fileName)
         continue
     
-#####################################################################
-#####################################################################
-#####   THIS IS A MAJOR CHANGE, AND IS NOT WORKING YET  #############
-    g = extractGrib(gbf, xy_list, nrows, ncols)
-#####   NEED TO COLLECT DATA IN VECTOR, THEN ASSIGN TO THE CELL SOMEHOW
+    #####################################################################
+    #####   THIS IS the function to actually get the forcing data  ######
+    g = npt.extractGrib(gbf, xy_list, nrows, ncols)
 
 
     # Looping takes too long. Need to get all values in vector
@@ -158,6 +159,7 @@ with open(save_G_name,'wb') as f:
 os.chmod(save_G_name, 0o777)
 
 # Save the forcing data for each cell, individually
+print('Writing forcing data to NetCDF files')
 for ixy in tqdm(xy_list):
     xy = npt.name_xy(ixy, lats, lons)
     x, y = np.unravel_index(ixy, (ncols,nrows))
