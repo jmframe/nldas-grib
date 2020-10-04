@@ -9,7 +9,6 @@ import netCDF4 as nc # http://unidata.github.io/netcdf4-python/
 import pygrib as pg
 import sys
 import os
-from tqdm import tqdm
 import pickle as pkl
 import nldas_pygrib_tools as npt
 import time
@@ -91,7 +90,7 @@ len(dates)
 ixy = -1 # Start at -1, so when we add the first value before the mask check, it goes to 0
 xy_list = []
 print('finding good(not masked) lat/lon values for grid')
-for x in tqdm(range(464)):
+for x in range(464):
     for y in range(224):            
         ixy+=1 # lat/lon from the 1D arrays that correspond to these indices
         if np.ma.is_masked(gbf_temp[11].values[y, x]): # Skip masked cells, takes .0044 seconds
@@ -102,7 +101,7 @@ for x in tqdm(range(464)):
 # Will be filled in with data from the grib files
 G = {}
 print('Setting up forcing lists for all grids')
-for ixy in tqdm(xy_list):
+for ixy in xy_list:
     xy = npt.name_xy(ixy, lats, lons)
     G[xy] = npt.setForcingLists(H)
 
@@ -110,7 +109,7 @@ for ixy in tqdm(xy_list):
 # Main loop through the NetCDF files by one hour intervals. 
 # iH: Index to use for filling forcing data list.
 print('Main loop: Extracting data from Grib files')
-for iH, t in enumerate(tqdm(dates)):
+for iH, t in enumerate(dates):
 
     hoursSinceStartDate = t - startDateTime
     hoursSinceStartDate = int(hoursSinceStartDate.total_seconds()/60/60)
@@ -141,7 +140,7 @@ for iH, t in enumerate(tqdm(dates)):
 
     # Looping takes too long. Need to get all values in vector
     # through x,y 1D indices.
-    for ixy in xyloop:
+    for i, ixy in enumerate(xy_list):
 
         xy = npt.name_xy(ixy, lats, lons)
         
@@ -150,7 +149,7 @@ for iH, t in enumerate(tqdm(dates)):
                 
         # Fill in the main Grib dictionary.
         for iv, v in enumerate(fvars):
-            G[xy][fvars[v]][iH] = g[fvars[v]][ixy]
+            G[xy][fvars[v]][iH] = g[fvars[v]][i]
 
 # Save the whole data periodically.
 save_G_name = write_dir+'grib_export.pkl'
@@ -160,7 +159,7 @@ os.chmod(save_G_name, 0o777)
 
 # Save the forcing data for each cell, individually
 print('Writing forcing data to NetCDF files')
-for ixy in tqdm(xy_list):
+for ixy in xy_list:
     xy = npt.name_xy(ixy, lats, lons)
     x, y = np.unravel_index(ixy, (ncols,nrows))
     lat=lats[ixy]
