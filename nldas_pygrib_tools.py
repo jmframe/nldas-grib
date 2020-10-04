@@ -183,38 +183,38 @@ def setForcingLists(H):
          'SWRadAtm':SWRadAtm, 'LWRadAtm':LWRadAtm}
     
     return F
-
-def extractGrib(g, lon_idx, lat_idx, verbose=False):
+def extractGrib(g, xy_list, nrows, ncols, verbose=False):
     # 1:11:11 TMP, 2-m above ground Temperature [K]
-    airtemp = g[1].values[lat_idx, lon_idx] 
+    airtemp = np.array(g[1].values.reshape(nrows*ncols)[xy_list])
+
     # 2:51:51 SPFH, 2-m above ground Specific humidity [kg/kg]
-    spechum = g[2].values[lat_idx, lon_idx] 
+    spechum = np.array(g[2].values.reshape(nrows*ncols)[xy_list])
     # 3:1:1 PRES, Surface pressure [Pa]
-    airpres = g[3].values[lat_idx, lon_idx] 
+    airpres = np.array(g[3].values.reshape(nrows*ncols)[xy_list])
     # 4:33:33 UGRD, 10-m above ground Zonal wind speed [m/s]
-    forcingUGRD = g[4].values[lat_idx, lon_idx]
+    forcingUGRD = np.array(g[4].values.reshape(nrows*ncols)[xy_list])
     # 5:34:34 VGRD, 10-m above ground Meridonal wind speed [m/s]
-    windspd = g[5].values[lat_idx, lon_idx] 
+    windspd = np.array(g[5].values.reshape(nrows*ncols)[xy_list])
     # 6:205:205 DLWRF,  Longwave radiation flux downwards [W/m^2]
-    LWRadAtm = g[6].values[lat_idx, lon_idx]
+    LWRadAtm = np.array(g[6].values.reshape(nrows*ncols)[xy_list])
     # 7:153:153 CONVfrac, Frac of total precip convective
-    forcingCONVfrac = g[7].values[lat_idx, lon_idx] 
+    forcingCONVfrac = np.array(g[7].values.reshape(nrows*ncols)[xy_list])
     # 8:157:157 CAPE, 180-mb above ground Convective Available Potential Energy
-    forcingCAPE = g[8].values[lat_idx, lon_idx] 
-    
+    forcingCAPE = np.array(g[8].values.reshape(nrows*ncols)[xy_list])
+        
     # PEVAP, Potential evaporation hourly total   MAYBE: Adiabatic tendency of temperature?
-    forcingPEVAP = g[9].values[lat_idx, lon_idx]
-    
+    forcingPEVAP = np.array(g[9].values.reshape(nrows*ncols)[xy_list])
+        
     # 10:61:61 APCP, Precipitation hourly total [kg/m^2/hr]
-    pptrate = g[10].values[lat_idx, lon_idx] / 60 / 60
-    
+    pptrate = np.array(g[10].values.reshape(nrows*ncols)[xy_list]) / 60 / 60
+        
     # 11:204:204 DSWRF, Shortwave radiation flux downwards (surface) [W/m^2]
-    SWRadAtm = g[11].values[lat_idx, lon_idx]
-            
+    SWRadAtm = np.array(g[11].values.reshape(nrows*ncols)[xy_list])
+                 
     G={'airtemp':airtemp, 'spechum':spechum, 'airpres':airpres, 'forcingUGRD':forcingUGRD, 
        'windspd':windspd, 'LWRadAtm':LWRadAtm, 'forcingCONVfrac':forcingCONVfrac, 
        'forcingCAPE':forcingCAPE,'forcingPEVAP':forcingPEVAP, 'pptrate':pptrate, 'SWRadAtm':SWRadAtm}
-    
+           
     if verbose:
         print("TMP, 2-m above ground Temperature [K]: {}".format(airtemp))
         print("SPFH, 2-m above ground Specific humidity [kg/kg]: {}".format(spechum))
@@ -227,5 +227,6 @@ def extractGrib(g, lon_idx, lat_idx, verbose=False):
         print("PEVAP, Potential evaporation hourly total: {}".format(forcingPEVAP))
         print("APCP, Precipitation hourly total [kg/m^2/hr]: {}".format(pptrate))
         print("DSWRF, Shortwave radiation flux downwards (surface) [W/m^2]: {}".format(SWRadAtm))
-        
+            
     return G
+
