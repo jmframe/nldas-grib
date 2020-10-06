@@ -99,7 +99,7 @@ def getValuesFromDateTime(t):
     h = dt.datetime.time(t).hour
     return y, m, d, h
 
-def fillForcing(forcing, H, lat, lon, timestp, time_series, \
+def fillForcing(forcing, H, lat, lon, timestp, time_series, year, \
                 SWRadAtm, LWRadAtm, airpres, airtemp, pptrate, spechum, windspd):
     forcing.createDimension('hru', 1)
     forcing.createDimension('time', H)
@@ -114,7 +114,7 @@ def fillForcing(forcing, H, lat, lon, timestp, time_series, \
     forcing.variables['data_step'].units = 'seconds'
     forcing.variables['data_step'].long_name = 'data step length in seconds'
     forcing.createVariable('time', np.float64, ('time',))
-    forcing.variables['time'].units = 'hours since 1979-01-01 00:00:00'
+    forcing.variables['time'].units = 'hours since '+str(year)+'-01-01 00:00:00'
     forcing.variables['time'].long_name = 'time of forcing data'
     forcing.createVariable('LWRadAtm', np.float32, ('time', 'hru'))
     forcing.variables['LWRadAtm'].units = 'W m-2'
@@ -162,27 +162,26 @@ def fillForcing(forcing, H, lat, lon, timestp, time_series, \
 def setForcingLists(H):
     # Set the vectors (Python List) with these hours for the forcing data
     # Air pressure at the measurement height
-    airpres = [0 for x in range(H)] #[Pa]
+    airpres = [np.nan for x in range(H)] #[Pa]
     # Air temperature at the measurement height
-    airtemp = [0 for x in range(H)]#[K]
+    airtemp = [np.nan for x in range(H)]#[K]
     # Downward longwave radiation at the upper boundary
-    LWRadAtm = [0 for x in range(H)] #[W m-2] 
+    LWRadAtm = [np.nan for x in range(H)] #[W m-2] 
     # Precipitation rate
-    pptrate = [0 for x in range(H)] #[kg m-2 s-1]
+    pptrate = [np.nan for x in range(H)] #[kg m-2 s-1]
     # Specific humifity at the measurement height
-    spechum = [0 for x in range(H)] #[g g-1]
+    spechum = [np.nan for x in range(H)] #[g g-1]
     # Downward shortwave radiation at the upper boundary
-    SWRadAtm = [0 for x in range(H)] #[W m-2]
+    SWRadAtm = [np.nan for x in range(H)] #[W m-2]
     # Observation time
-    time_series = [0 for x in range(H)] #[days since 1979-01-01 00:00:00]
+    time_series = [np.nan for x in range(H)] #[days since 1979-01-01 00:00:00]
     #wind speed at the measurement height
-    windspd = [0 for x in range(H)] #[m s-1]
-
+    windspd = [np.nan for x in range(H)] #[m s-1]
     F = {'airpres':airpres, 'airtemp':airtemp, 'pptrate':pptrate, 
          'spechum':spechum, 'windspd':windspd,
          'SWRadAtm':SWRadAtm, 'LWRadAtm':LWRadAtm}
-    
     return F
+
 def extractGrib(g, xy_list, nrows, ncols, verbose=False):
     # 1:11:11 TMP, 2-m above ground Temperature [K]
     airtemp = np.array(g[1].values.reshape(nrows*ncols)[xy_list])

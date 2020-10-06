@@ -12,24 +12,29 @@ import os
 import pickle as pkl
 import nldas_pygrib_tools as npt
 import time
+from tqdm import tqdm
 
 np.set_printoptions(threshold=sys.maxsize)
 
-nc_year=1980
+nc_year = 1980
+year_splits = 10
+recover = False
+search_xy = False
 
 # Write the NetCDF forcing data file.
+proj_dir = '/home/NearingLab/projects/jmframe/nldas-grib/'
 grib_dir = '/home/NearingLab/data/nldas/grib/NLDAS2.FORCING/'
-write_dir = '/home/NearingLab/data/nldas/netcdf-single-cells/' + str(nc_year) +'/'
+write_dir = '/home/NearingLab/data/nldas/netcdf-single-cells/'+str(nc_year)+'/'
 
-# Open an example file : NLDAS_FORA0125_H.A19800101.0000.002.grb
-fname = grib_dir + str(nc_year) + '/001/' + 'NLDAS_FORA0125_H.A'+ str(nc_year) +'0101.0000.002.grb'
-#fname = grib_dir + '2019/001/' + 'NLDAS_FORA0125_H.A20190101.0000.002.grb'
+# Open an example file
+fname = grib_dir + '1979/001/' + 'NLDAS_FORA0125_H.A'+ str(nc_year) +'0101.0000.002.grb'
+if yearStart == 1979:
+    fname = grib_dir + str(nc_year) +'/001/' + 'NLDAS_FORA0125_H.A19790101.0000.002.grb'
 gbf_temp = pg.open(fname)
 lats = gbf_temp[1].latitudes
 lons = gbf_temp[1].longitudes
 nrows = gbf_temp[11].values.shape[0]
 ncols = gbf_temp[11].values.shape[1]
-N = nrows*ncols
 
 gvars = {0:'airtemp', 1:'spechum', 2:'airpres', 3:'forcingUGRD', 4:'windspd',
          5:'LWRadAtm',6:'forcingCONVfrac', 7:'forcingCAPE', 8:'forcingPEVAP', 9:'pptrate', 10:'SWRadAtm'}
@@ -38,8 +43,11 @@ fvars = {0:'airpres', 1:'airtemp', 2:'pptrate', 3:'spechum', 4:'windspd', 5:'LWR
 # Set start and end data information for the GRIB/NetCDF forcing data.
 yearStart  = nc_year
 monthStart = 1 
-dayStart   = 1 
-hourStart  = 0
+dayStart = 1 
+if yearStart == 1979:
+    hourStart = 13
+else:
+    hourStart = 0
 startDateTime = dt.datetime(yearStart, monthStart, dayStart, hour = hourStart)
 print("Will be calculating hours starting from: ")
 print(startDateTime)
@@ -87,30 +95,65 @@ dates = [startDateTime + deltime*h for h in range(H)]
 len(dates)
 
 # find all the masked cells before the main loop, and avoid them
-ixy = -1 # Start at -1, so when we add the first value before the mask check, it goes to 0
-xy_list = []
-print('finding good(not masked) lat/lon values for grid')
-for x in range(464):
-    for y in range(224):            
-        ixy+=1 # lat/lon from the 1D arrays that correspond to these indices
-        if np.ma.is_masked(gbf_temp[11].values[y, x]): # Skip masked cells, takes .0044 seconds
-            continue
-        xy_list.append(ixy)
+list_fname = 'unmasked_xy_indices.txt'
+if search_xy:
+    ixy = -1 # Start at -1, so when we add the first value before the mask check, it goes to 0
+    xy_list = []
+    for x in tqdm(range(464)):
+        for y in range(224):            
+            ixy+=1 # lat/lon from the 1D arrays that correspond to these indices
+            if np.ma.is_masked(gbf_temp[11].values[y, x]): # Skip masked cells, takes .0044 seconds
+                continue
+            xy_list.append(ixy)
+    np.savetxt(list_fname, xy_list)
+elif os.path.exists(list_fname):
+    xy_list = list(np.genfromtxt(list_fname))
+    for i, ixy in enumerate(xy_list):
+        xy_list[i] = int(xy_list[i])
+else:
+    print("xy_list not working")
+N = len(xy_list)
+num_in_split = int(N/year_splits)
 
 # Set up a dictionary for each cell, keys named from lat-lon
 # Will be filled in with data from the grib files
-G = {}
-print('Setting up forcing lists for all grids')
-for ixy in xy_list:
-    xy = npt.name_xy(ixy, lats, lons)
-    G[xy] = npt.setForcingLists(H)
+start_time_index = 0
+# if recover:
+#     with open(G_pkl_file,'rb') as f:
+#         G = pkl.read(f)
+#     # Find where the saved file left off:
+#     for iH, t in enumerate(tqdm(dates)):
+#         i=0
+#         ixy=xy_list[i]
+#         xy = npt.name_xy(ixy, lats, lons)
+#         v = fvars[0]
+#         if np.isnan(G[xy][fvars[v]][iH]):
+#             continue
+#         else:
+#             start_time_index = iH
+#             break
+# else:
+G = {i:{} for i in range(year_splits)}
+for isplit in range(year_splits):
+    if isplit+1==year_splits: # Last split ends at i=N
+        for i, ixy in enumerate(tqdm(xy_list[isplit*int(N/year_splits):N])):
+            xy = npt.name_xy(ixy, lats, lons)
+            G[isplit][xy] = npt.setForcingLists(H)
+    else:
+        for i, ixy in enumerate(tqdm(xy_list[isplit*int(N/year_splits):(isplit+1)*int(N/year_splits)])):
+            xy = npt.name_xy(ixy, lats, lons)
+            G[isplit][xy] = npt.setForcingLists(H)
 
 # Main loop through the GRIB files by one hour intervals. open, extract, write, save
 # Main loop through the NetCDF files by one hour intervals. 
 # iH: Index to use for filling forcing data list.
-print('Main loop: Extracting data from Grib files')
-for iH, t in enumerate(dates):
-
+for iH, t in enumerate(tqdm(dates)):
+    
+    # start from where the last save was made
+#     if recover:
+#         if iH < start_time_index:
+#             continue
+    
     hoursSinceStartDate = t - startDateTime
     hoursSinceStartDate = int(hoursSinceStartDate.total_seconds()/60/60)
     time_series[iH] = float(hoursSinceStartDate)
@@ -137,10 +180,14 @@ for iH, t in enumerate(dates):
     #####   THIS IS the function to actually get the forcing data  ######
     g = npt.extractGrib(gbf, xy_list, nrows, ncols)
 
-
     # Looping takes too long. Need to get all values in vector
     # through x,y 1D indices.
     for i, ixy in enumerate(xy_list):
+        
+        # Calculate the split in the list from i.        
+        isplit = int(np.floor(i/num_in_split))
+        if isplit >= year_splits:
+            isplit = year_splits - 1
 
         xy = npt.name_xy(ixy, lats, lons)
         
@@ -149,17 +196,25 @@ for iH, t in enumerate(dates):
                 
         # Fill in the main Grib dictionary.
         for iv, v in enumerate(fvars):
-            G[xy][fvars[v]][iH] = g[fvars[v]][i]
+            G[isplit][xy][fvars[v]][iH] = g[fvars[v]][i]
+               
+    # Save the whole data periodically.
+    if (iH>0) and not iH % 2000 or t == dates[-1]:
+        for isplit in range(year_splits):
+            G_pkl_file = write_dir+'grib_export_'+str(isplit)+'.pkl'
+            print('writing G[{}] at time: {}'.format(isplit, t))
+            with open(G_pkl_file,'wb') as f:
+                pkl.dump(G[isplit], f)
+            os.chmod(G_pkl_file, 0o777)
 
-# Save the whole data periodically.
-save_G_name = write_dir+'grib_export.pkl'
-with open(save_G_name,'wb') as f:
-    pkl.dump(G, f)
-os.chmod(save_G_name, 0o777)
 
 # Save the forcing data for each cell, individually
-print('Writing forcing data to NetCDF files')
-for ixy in xy_list:
+print("Saving data in netCDF files")
+for i, ixy in enumerate(tdqm(xy_list)):
+    # Calculate the split in the list from i.        
+    isplit = int(np.floor(i/num_in_split))
+    if isplit >= year_splits:
+        isplit = year_splits - 1
     xy = npt.name_xy(ixy, lats, lons)
     x, y = np.unravel_index(ixy, (ncols,nrows))
     lat=lats[ixy]
@@ -172,13 +227,11 @@ for ixy in xy_list:
     forcing.title = "NLDAS forcing "+fname
     forcing.description = 'NLDAS forcing data for '+fname
     forcing = npt.fillForcing(forcing, H, lat, lon, timestp, time_series, 
-        G[xy]['SWRadAtm'], 
-        G[xy]['LWRadAtm'], 
-        G[xy]['airpres'], 
-        G[xy]['airtemp'], 
-        G[xy]['pptrate'], 
-        G[xy]['spechum'], 
-        G[xy]['windspd'])
+        G[isplit][xy]['SWRadAtm'], 
+        G[isplit][xy]['LWRadAtm'], 
+        G[isplit][xy]['airpres'], 
+        G[isplit][xy]['airtemp'], 
+        G[isplit][xy]['pptrate'], 
+        G[isplit][xy]['spechum'], 
+        G[isplit][xy]['windspd'], year)
     os.chmod(forcingDataName, 0o777)
-
-
